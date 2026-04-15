@@ -1,95 +1,131 @@
-import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import api from "../api/axiosInstance";
-import type { BoardDTO, PageResponse } from "../types/Board";
+import React, { useEffect, useState, useCallback } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { boardApi } from "../api/axiosInstance";
+import { Criteria } from "../types/Board";
+import type { BoardDto, PageResponse } from "../types/Board";
 import "./BoardList.css";
 
 const BoardList: React.FC = () => {
-  const [list, setList] = useState<BoardDTO[]>([]);
-  const [pageInfo, setPageInfo] = useState<PageResponse | null>(null);
+  const navigate = useNavigate();
+  const [list, setList] = useState<BoardDto[]>([]);
+  const [pageMarker, setPageMarker] = useState<PageResponse | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 
-  useEffect(() => {
-    api
-      .get(`/list?pageNum=${currentPage}`)
-      .then((res) => {
-        setList(res.data.list);
-        setPageInfo(res.data.pageMaker);
-      })
-      .catch(console.error);
-  }, [currentPage]);
+  const fetchBoardList = useCallback(async (pageNum: number) => {
+    try {
+      const searchParams = new Criteria(pageNum, 10);
+      //const searchParams = { pageNum: pageNum, amount: 10 };
+      const data = await boardApi.getList(searchParams as any);
 
-  const renderPagination = () => {
-    if (!pageInfo) return null;
+      console.log("서버 응답: ", data);
 
-    const pages = [];
-    for (let i = pageInfo.startPage; i <= pageInfo.endPage; i++) {
-      pages.push(
-        <button
-          key={i}
-          onClick={() => setCurrentPage(i)}
-          className={currentPage === i ? "page-btn active" : "page-btn"}
-        >
-          {i}
-        </button>,
-      );
+      setList(data.list);
+      setPageMarker(data.pageMarker);
+    } catch (error) {
+      console.error("데이터 로딩 실패: ", error);
     }
+  }, []);
 
-    return (
-      <div className="pagination">
-        {pageInfo.prev && (
-          <button onClick={() => setCurrentPage(pageInfo.startPage - 1)}>
-            이전
-          </button>
-        )}
-        {pages}
-        {pageInfo.next && (
-          <button onClick={() => setCurrentPage(pageInfo.endPage + 1)}>
-            다음
-          </button>
-        )}
-      </div>
-    );
+  useEffect(() => {
+    fetchBoardList(currentPage);
+  }, [currentPage, fetchBoardList]);
+
+  const handlePageChange = (pageNum: number) => {
+    setCurrentPage(pageNum);
+    window.scrollTo(0, 0);
   };
+
+  if (!pageMarker) {
+    return <div className="list-container">로딩 중...</div>;
+  }
+
+  const pageNumbers = [];
+  for (let i = pageMarker.startPage; i <= pageMarker.endPage; i++) {
+    pageNumbers.push(i);
+  }
 
   return (
     <div className="list-container">
-      <h2 className="list-title">게시글 목록</h2>
+      <h2 className="list-title">게시판 목록</h2>
       <table className="board-table">
         <thead>
           <tr>
-            <th style={{ width: "10%" }}>번호</th>
-            <th style={{ width: "70%" }}>제목</th>
-            <th style={{ width: "20%" }}>조회수</th>
+            <th className="th-num">번호</th>
+            <th className="th-title">제목</th>
+            <th className="th-writer">작성자</th>
+            <th className="th-hit">조회수</th>
+            <th className="th-date">작성일</th>
           </tr>
         </thead>
         <tbody>
-          {list.length > 0 ? (
+          {list && list.length > 0 ? (
             list.map((board) => (
-              <tr key={board.boardId}>
+              <tr
+                key={board.boardId}
+                onClick={() => navigate(`/detail/${board.boardId}`)}
+              >
                 <td>{board.boardId}</td>
-                <td style={{ textAlign: "left" }}>
-                  <Link className="title-link" to={`/detail/${board.boardId}`}>
+                <td className="td-suject">
+                  <Link
+                    to={`/detail/${board.boardId}`}
+                    className="title-link"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {board.title}
                   </Link>
+                  {board.fileList && board.fileList.length > 0 && (
+                    <span className="file-icon"></span>
+                  )}
                 </td>
+                <td>{board.creatorId}</td>
                 <td>{board.hitCnt}</td>
+                <td>{board.createdDatetime?.substring(0, 10)}</td>
               </tr>
             ))
           ) : (
             <tr>
-              <td colSpan={3}>게시글이 존재하지 않습니다.</td>
+              <td colSpan={5} className="no-data">
+                등록된 게시글이 없습니다.
+              </td>
             </tr>
           )}
         </tbody>
       </table>
 
-      {renderPagination()}
+      <div className="pagination">
+        {pageMarker.prev && (
+          <button
+            className="page-btn prev"
+            onClick={() => handlePageChange(pageMarker.startPage - 1)}
+          >
+            이전
+          </button>
+        )}
+
+        {pageNumbers.map((num) => (
+          <button
+            key={num}
+            className={`page-btn ${pageMarker.cri.pageNum === num ? "active" : ""}`}
+            onClick={() => handlePageChange(num)}
+          >
+            {num}
+          </button>
+        ))}
+
+        {pageMarker.next && (
+          <button
+            className="page-btn next"
+            onClick={() => handlePageChange(pageMarker.endPage + 1)}
+          >
+            다음
+          </button>
+        )}
+      </div>
 
       <div className="btn-area">
-        <Link to={"/write"}>
-          <button className="btn-write">글쓰기</button>
-        </Link>
+        <button className="btn-write" onClick={() => navigate("/write")}>
+          글쓰기
+        </button>
       </div>
     </div>
   );

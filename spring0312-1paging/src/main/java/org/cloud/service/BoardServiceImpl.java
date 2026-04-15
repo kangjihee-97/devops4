@@ -10,6 +10,7 @@ import org.cloud.dto.Criteria;
 import org.cloud.dto.FileDto;
 import org.cloud.mapper.BoardMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.ObjectUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,23 +21,23 @@ public class BoardServiceImpl implements BoardService {
 
 	@Autowired
 	private BoardMapper boardMapper;
+
+	@Value("${file.upload-path}")
+	private String uploadPath;
 	
 	@Override
 	public List<BoardDto> selectBoardList() throws Exception {
-		// TODO Auto-generated method stub
 		return boardMapper.selectBoardList();
 	}
 	
 	@Override
 	public void insertBoard(BoardDto board, MultipartHttpServletRequest request) throws Exception {
-		// TODO Auto-generated method stub
 		boardMapper.insertBoard(board); 
 		saveFiles(board, request);
 	}
 	
 	@Override
 	public BoardDto selectDetail(int boardId) throws Exception {
-		// TODO Auto-generated method stub
 		boardMapper.updateHitCount(boardId);
 		BoardDto board = boardMapper.selectDetail(boardId);
 		List<FileDto> fileList = boardMapper.selectFileList(boardId);
@@ -46,15 +47,12 @@ public class BoardServiceImpl implements BoardService {
 	
 	@Override
 	public void updateBoard(BoardDto board, MultipartHttpServletRequest request) throws Exception {
-		// TODO Auto-generated method stub
 		boardMapper.updateBoard(board);
 		saveFiles(board, request);
 	}
 	
 	@Override
 	public void deleteBoard(int boardId) throws Exception {
-		// TODO Auto-generated method stub
-		
 		List<FileDto> fileList = boardMapper.selectFileList(boardId);
 		
 		for (FileDto file : fileList) {
@@ -69,7 +67,6 @@ public class BoardServiceImpl implements BoardService {
 	
 	@Override
 	public void deleteFile(int fileIdx) throws Exception {
-		// TODO Auto-generated method stub
 		FileDto file = boardMapper.selectFileInfo(fileIdx);
 		if (file != null) {
 			File physicalFile = new File(file.getStoredFilePath());
@@ -77,7 +74,6 @@ public class BoardServiceImpl implements BoardService {
 				physicalFile.delete();
 			}
 		}
-		
 		boardMapper.deleteFile(fileIdx);
 	}
 	
@@ -87,8 +83,7 @@ public class BoardServiceImpl implements BoardService {
 		}
 		
 		List<FileDto> fileList = new ArrayList<FileDto>();
-		String path = "C:/upload/";
-		File dir = new File(path);
+		File dir = new File(uploadPath);
 		
 		if (!dir.exists()) {
 			dir.mkdirs();
@@ -101,13 +96,14 @@ public class BoardServiceImpl implements BoardService {
 			for (MultipartFile mFile : list) {
 				if (!mFile.isEmpty()) {
 					String saveName = System.currentTimeMillis() + "_" + mFile.getOriginalFilename();
-					mFile.transferTo(new File(path + saveName));
+					File saveFile = new File(dir, saveName);
+					mFile.transferTo(saveFile);
 					
 					FileDto fileDto = new FileDto();
 					fileDto.setBoardId(board.getBoardId());
 					fileDto.setFileSize(mFile.getSize());
 					fileDto.setOriginalFileName(mFile.getOriginalFilename());
-					fileDto.setStoredFilePath(path + saveName);
+					fileDto.setStoredFilePath(saveFile.getPath());
 					fileDto.setCreatorId(board.getCreatorId());
 					fileList.add(fileDto);
 				}
@@ -121,18 +117,11 @@ public class BoardServiceImpl implements BoardService {
 	
 	@Override
 	public List<BoardDto> selectBoardListPaging(Criteria cri) throws Exception {
-		// TODO Auto-generated method stub
 		return boardMapper.selectBoardListPaging(cri);
 	}
 	
 	@Override
 	public int selectBoardTotalCount() throws Exception {
-		// TODO Auto-generated method stub
 		return boardMapper.selectBoardTotalCount();
 	}
 }
-
-
-
-
-
